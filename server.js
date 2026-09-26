@@ -10,7 +10,7 @@ const bcrypt = require('bcryptjs');
 const multer = require('multer');
 
 const PORT = process.env.PORT || 3000;
-const MAX_FILE_BYTES = 20 * 1024 * 1024; // 20 MB per file
+const MAX_FILE_BYTES = 50 * 1024 * 1024; // 50 MB per file
 const HISTORY_LIMIT = 30; // only keep the latest 30 messages in the client view
 const ALLOWED_FILES = {
   'application/pdf': '.pdf',
@@ -157,7 +157,7 @@ app.post('/api/login', (req, res) => {
   res.json({ token, username: user.username, userId: Number(user.id), created });
 });
 
-// File upload (max 20 MB). Files are stored under generated names so the original
+// File upload (max 50 MB). Files are stored under generated names so the original
 // filename can never become part of a filesystem path.
 const upload = multer({
   storage: multer.diskStorage({
@@ -176,7 +176,7 @@ app.post('/api/upload', (req, res) => {
   if (!userFromToken(token)) return res.status(401).json({ error: 'กรุณาเข้าสู่ระบบใหม่' });
   upload(req, res, (err) => {
     if (err) {
-      const msg = err.code === 'LIMIT_FILE_SIZE' ? 'ไฟล์ใหญ่เกิน 20MB' : 'รองรับเฉพาะไฟล์ประเภทที่กำหนด';
+      const msg = err.code === 'LIMIT_FILE_SIZE' ? 'ไฟล์ใหญ่เกิน 50MB' : 'รองรับเฉพาะไฟล์ประเภทที่กำหนด';
       return res.status(400).json({ error: msg });
     }
     if (!req.file) return res.status(400).json({ error: 'ไม่รองรับไฟล์ชนิดนี้' });
