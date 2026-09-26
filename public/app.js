@@ -1,5 +1,5 @@
 // Single-page app: login screen + chat screen, sliding between them in one stage.
-const MAX_FILE_BYTES = 20 * 1024 * 1024;
+const MAX_FILE_BYTES = 50 * 1024 * 1024;
 const MAX_RENDERED_MESSAGES = 30;
 const SCREEN_SLIDE_MS = 600;
 
@@ -557,7 +557,7 @@ function sendText() {
 }
 
 async function sendFile(file) {
-  if (file.size > MAX_FILE_BYTES) return showToast('ไฟล์ใหญ่เกิน 20MB');
+  if (file.size > MAX_FILE_BYTES) return showToast('ไฟล์ใหญ่เกิน 50MB');
   addBtn.disabled = true;
   try {
     const body = new FormData();
@@ -582,7 +582,11 @@ sendBtn.addEventListener('click', sendText);
 textEl.addEventListener('input', () => setLocalTyping(!!textEl.value.trim()));
 textEl.addEventListener('blur', () => setLocalTyping(false));
 textEl.addEventListener('keydown', (e) => {
-  if (e.key === 'Enter' && !e.isComposing) sendText(); // isComposing: don't send while typing with an IME
+  if (e.key !== 'Enter' || e.isComposing) return;
+  // Shift + Enter inserts a newline; Enter alone sends the message.
+  if (e.shiftKey) return;
+  e.preventDefault();
+  sendText();
 });
 addBtn.addEventListener('click', () => fileEl.click());
 fileEl.addEventListener('change', () => { if (fileEl.files[0]) sendFile(fileEl.files[0]); });
