@@ -263,265 +263,397 @@ svg { width: 100%; height: 100%; display: block; }
 .send-btn:hover { background: var(--yellow-deep); }
 .send-btn:disabled, .add-btn:disabled { opacity: .4; cursor: default; }
 
-/* ---------- Compact mobile UI ----------
-   Mobile mode is intentionally a scaled-down version of the reference UI:
-   one centered cream chat card with the account bar at the top, members below,
-   messages in the middle, and the composer at the bottom. */
+/* ==========================================================
+   MOBILE MODE — stable single-card layout
+   The mobile chat is a scaled version of the desktop design:
+   one centered card, account bar on top, messages in the middle,
+   composer at the bottom. No horizontal page/track is used.
+   ========================================================== */
 @media (max-width: 768px) {
-  html, body { overflow: hidden; }
-  .stage { overflow: hidden; }
+  html,
+  body {
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    overflow: hidden;
+    overscroll-behavior: none;
+  }
 
-  /* Keep the login page from ever creating a page-level scrollbar. */
-  .screen-login { overflow: hidden; padding: 12px; }
+  body {
+    font-size: 16px;
+  }
+
+  .stage {
+    width: 100vw;
+    height: 100dvh;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  /* Login: fixed square proportion, no scrollbar. */
+  .screen-login {
+    padding: 12px;
+    overflow: hidden;
+  }
+
   .login-card {
     width: min(296px, calc(100vw - 24px));
     height: auto;
     aspect-ratio: 1 / 1;
     max-height: calc(100dvh - 24px);
-    overflow: hidden;
-    border-radius: 14px;
     padding: 18px 20px;
+    border-radius: 14px;
+    overflow: hidden;
     justify-content: flex-start;
   }
-  .brand-icon { width: 34px; height: 34px; padding: 7px; margin-bottom: 7px; border-radius: 10px; }
-  .login-card h1 { font-size: 23px; line-height: 1.1; margin-bottom: 2px; }
-  .login-card .sub { font-size: 12px; line-height: 1.2; margin-bottom: 10px; }
-  .login-card label { font-size: 13px; line-height: 1.1; margin-bottom: 3px; }
-  .login-card input { padding: 7px 10px; margin-bottom: 3px; font-size: 15px; line-height: 1.1; border-radius: 9px; }
-  .hint, .error { min-height: 14px; margin-bottom: 5px; font-size: 11px; line-height: 1.1; }
-  .btn { padding: 9px; border-radius: 9px; font-size: 15px; line-height: 1.1; }
 
-  /* The mobile chat itself is a small centered card, matching the supplied ref. */
+  .brand-icon {
+    width: 34px;
+    height: 34px;
+    padding: 7px;
+    margin-bottom: 7px;
+    border-radius: 10px;
+  }
+
+  .login-card h1 {
+    font-size: 23px;
+    line-height: 1.1;
+    margin-bottom: 2px;
+  }
+
+  .login-card .sub {
+    font-size: 12px;
+    line-height: 1.2;
+    margin-bottom: 10px;
+  }
+
+  .login-card label {
+    font-size: 13px;
+    line-height: 1.1;
+    margin-bottom: 3px;
+  }
+
+  .login-card input {
+    padding: 7px 10px;
+    margin-bottom: 3px;
+    font-size: 15px;
+    line-height: 1.1;
+    border-radius: 9px;
+  }
+
+  .hint,
+  .error {
+    min-height: 14px;
+    margin-bottom: 5px;
+    font-size: 11px;
+    line-height: 1.1;
+  }
+
+  .btn {
+    padding: 9px;
+    border-radius: 9px;
+    font-size: 15px;
+    line-height: 1.1;
+  }
+
+  /* Chat screen remains a normal full-screen layer. */
   .screen-chat {
-    width: min(296px, calc(100vw - 36px), calc((100dvh - 36px) * 296 / 591));
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    padding: 0;
+    margin: 0;
+    display: block;
+    overflow: hidden;
+    background: transparent;
+    transform: translateY(100%);
+  }
+
+  .stage.chat-active .screen-chat {
+    transform: translateY(0);
+  }
+
+  .stage.no-anim .screen-chat {
+    transition: none;
+  }
+
+  /* Main mobile card. */
+  .chat-panel {
+    position: absolute;
+    z-index: 1;
+    top: 16px;
+    left: 50%;
+    width: min(296px, calc(100vw - 32px), calc((100dvh - 32px) * 296 / 591));
     height: auto;
     aspect-ratio: 296 / 591;
-    max-width: calc(100vw - 36px);
-    max-height: calc(100dvh - 36px);
-    margin: 18px auto auto;
-    padding: 0;
-    display: grid;
-    grid-template-rows: auto auto minmax(0, 1fr) auto;
-    align-content: stretch;
+    max-height: calc(100dvh - 32px);
+    transform: translateX(-50%);
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
+    margin: 0;
     background: var(--cream);
     border-radius: 14px;
     overflow: hidden;
     box-shadow: none;
-    transform: translateY(100%);
   }
-  .stage.chat-active .screen-chat { transform: translateY(0); }
 
-  /* Turn the desktop sidebar + chat panel into one mobile card. */
-  .sidebar,
-  .chat-panel { display: contents; }
+  /* Mobile account bar: same width as the card, always above messages. */
+  .sidebar {
+    position: absolute;
+    z-index: 2;
+    top: 16px;
+    left: 50%;
+    width: min(296px, calc(100vw - 32px), calc((100dvh - 32px) * 296 / 591));
+    height: auto;
+    aspect-ratio: 296 / 591;
+    max-height: calc(100dvh - 32px);
+    transform: translateX(-50%);
+    margin: 0;
+    padding: 0;
+    pointer-events: none;
+    overflow: hidden;
+    background: transparent;
+    border-radius: 14px;
+    box-shadow: none;
+  }
+
   .room-box,
   .divider,
-  .spacer { display: none; }
+  .member-list,
+  .spacer {
+    display: none !important;
+  }
 
-  /* Account bar — first visible row. */
   .me-box {
-    grid-row: 1;
-    grid-column: 1;
+    position: absolute;
+    top: 0;
+    left: 0;
     width: 100%;
-    min-width: 0;
+    height: 49px;
     margin: 0;
-    padding: 8px 9px;
-    border-radius: 0;
+    padding: 7px 9px;
+    border-radius: 14px 14px 0 0;
     display: flex;
     flex-direction: row;
     align-items: center;
     justify-content: space-between;
-    gap: 8px;
+    gap: 7px;
+    pointer-events: auto;
   }
-  .me-top { min-width: 0; flex: 1 1 auto; gap: 7px; }
-  .avatar-icon { width: 34px; height: 34px; padding: 3px; }
-  .me-name { font-size: 20px; font-weight: 700; }
-  .status-icon { width: 20px; height: 20px; padding: 1px; border-width: 1.5px; }
-  .status-icon span { width: 9px; height: 9px; }
+
+  .me-top {
+    min-width: 0;
+    flex: 1 1 auto;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+  }
+
+  .avatar-icon {
+    width: 33px;
+    height: 33px;
+    padding: 3px;
+  }
+
+  .me-name {
+    min-width: 0;
+    max-width: 100%;
+    font-size: 19px;
+    line-height: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* No online status indicator on mobile. */
+  .status-icon,
+  .status-icon span {
+    display: none !important;
+  }
+
   .logout-pill {
     flex: none;
-    padding: 8px 14px;
+    max-width: 120px;
+    padding: 8px 12px;
     border-radius: 10px;
     font-size: 14px;
-    font-weight: 700;
     line-height: 1.1;
     white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
     transition: background-color .08s ease;
   }
 
-  /* Members become simple rows on the same cream surface. */
-  .member-list {
-    grid-row: 2;
-    grid-column: 1;
-    width: 100%;
-    max-height: 76px;
-    min-height: 0;
-    padding: 4px 6px 2px;
-    gap: 0;
-    overflow-y: auto;
-    overflow-x: hidden;
-    background: var(--cream);
-  }
-  .member-item {
-    width: 100%;
-    padding: 4px 9px;
-    gap: 7px;
-    border-radius: 0;
-    background: transparent;
-    color: var(--ink);
-    font-size: 18px;
-    font-weight: 700;
-  }
-  .member-icon { width: 26px; height: 26px; color: var(--ink); padding: 1px; }
-  .member-status { display: none; }
-  .member-name { color: var(--ink); }
-
-  /* Message area. */
+  /* The message viewport is a real scroll container. */
   .messages {
-    grid-row: 3;
-    grid-column: 1;
+    flex: 1 1 auto;
     min-width: 0;
     min-height: 0;
-    padding: 5px 15px 4px;
-    gap: 8px;
+    width: 100%;
+    max-width: 100%;
     overflow-x: hidden;
     overflow-y: auto;
-    background: var(--cream);
-  }
-  .msg { max-width: 92%; }
-  .meta-row { gap: 5px; margin-bottom: 3px; }
-  .avatar-sm { width: 26px; height: 26px; padding: 2px; }
-  .who { font-size: 18px; line-height: 1.05; }
-  .bubble {
-    border-radius: 10px;
-    padding: 8px 12px;
-    font-size: 15.5px;
-    line-height: 1.3;
-    font-weight: 700;
-  }
-  .bubble.has-image { padding: 6px; }
-  .bubble img {
-    max-width: 100%;
-    max-height: 210px;
-    border-radius: 6px;
-  }
-  .bubble.has-image p { padding: 3px 6px 0; }
-  .system-msg { font-size: 11px; padding: 1px 8px; }
-  .toast { display: none; }
-
-  /* Bottom composer. */
-  .composer {
-    grid-row: 4;
-    grid-column: 1;
-    width: auto;
-    min-width: 0;
-    margin: 7px 15px 9px;
-    padding: 3px 5px;
-    gap: 3px;
-    min-height: 41px;
-    border-radius: 12px;
-  }
-  .add-btn {
-    width: 35px;
-    height: 35px;
-    opacity: .75;
-  }
-  .composer input[type="text"] {
-    min-width: 0;
-    padding: 6px 3px;
-    font-size: 15px;
-  }
-  .send-btn {
-    width: 35px;
-    height: 35px;
-    padding: 8px;
-    border-radius: 10px;
-  }
-}
-
-/* Mobile: do not show the online-member list. Keep the user's own account bar. */
-@media (max-width: 768px) {
-  .member-list { display: none !important; }
-  .divider { display: none !important; }
-  .screen-chat {
-    grid-template-rows: auto minmax(0, 1fr) auto;
-  }
-  .messages { grid-row: 2; }
-  .composer { grid-row: 3; }
-}
-
-/* Mobile message overflow fixes: long names, filenames, and bubbles must stay inside the card. */
-@media (max-width: 768px) {
-  .screen-chat .messages {
-    width: 100%;
-    min-width: 0;
-    max-width: 100%;
-    overflow-x: hidden;
-    padding-bottom: 12px;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-y: contain;
+    touch-action: pan-y;
+    padding: 57px 15px 6px;
+    gap: 8px;
     scrollbar-width: none;
     -ms-overflow-style: none;
   }
-  .screen-chat .messages::-webkit-scrollbar {
+
+  .messages::-webkit-scrollbar {
     display: none;
     width: 0;
     height: 0;
   }
-  .screen-chat .msg {
+
+  .msg {
     width: auto;
     min-width: 0;
     max-width: 92%;
+    align-self: flex-start;
   }
-  .screen-chat .meta-row {
+
+  .msg.mine {
+    align-self: flex-end;
+  }
+
+  .meta-row {
     width: auto;
     max-width: 100%;
     min-width: 0;
+    gap: 5px;
+    margin-bottom: 3px;
   }
-  .screen-chat .who {
+
+  .avatar-sm {
+    flex: none;
+    width: 26px;
+    height: 26px;
+    padding: 2px;
+  }
+
+  .who {
     min-width: 0;
     max-width: 100%;
+    font-size: 18px;
+    line-height: 1.05;
     overflow-wrap: anywhere;
     word-break: break-word;
   }
-  .screen-chat .bubble {
+
+  .bubble {
+    width: fit-content;
     min-width: 0;
     max-width: 100%;
+    padding: 8px 12px;
+    border-radius: 10px;
+    font-size: 15.5px;
+    line-height: 1.3;
+    font-weight: 700;
     overflow: hidden;
     overflow-wrap: anywhere;
     word-break: break-word;
+    white-space: pre-wrap;
   }
-  .screen-chat .bubble img {
+
+  .msg.mine .bubble {
+    max-width: 100%;
+  }
+
+  .bubble.has-image {
+    width: auto;
+    padding: 6px;
+  }
+
+  .bubble img {
     display: block;
     width: auto;
-    max-width: 100%;
     height: auto;
+    max-width: 100%;
+    max-height: 210px;
+    border-radius: 6px;
   }
-  .screen-chat .file-attachment {
-    width: 100%;
+
+  .bubble.has-image p {
+    padding: 3px 6px 0;
+  }
+
+  .file-attachment {
+    display: grid;
+    width: min(100%, 100%);
     min-width: 0;
     max-width: 100%;
     grid-template-columns: 40px minmax(0, 1fr);
+    grid-template-rows: auto auto;
     column-gap: 8px;
+    align-items: center;
+    overflow: hidden;
   }
-  .screen-chat .file-icon {
+
+  .file-icon {
     width: 40px;
     height: 40px;
+    min-width: 0;
+    border-radius: 10px;
+    font-size: 10px;
   }
-  .screen-chat .file-name,
-  .screen-chat .file-hint {
+
+  .file-name,
+  .file-hint {
     min-width: 0;
     max-width: 100%;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
-}
 
-/* Mobile: hide the current user's online status indicator (green dot) completely. */
-@media (max-width: 768px) {
-  .screen-chat .status-icon {
-    display: none !important;
+  .system-msg {
+    max-width: 90%;
+    font-size: 11px;
+    padding: 1px 8px;
   }
-  .screen-chat .status-icon span {
-    display: none !important;
+
+  .toast {
+    display: none;
+  }
+
+  .composer {
+    flex: none;
+    width: auto;
+    min-width: 0;
+    min-height: 41px;
+    margin: 7px 15px 9px;
+    padding: 3px 5px;
+    gap: 3px;
+    border-radius: 12px;
+  }
+
+  .add-btn,
+  .send-btn {
+    flex: none;
+    width: 35px;
+    height: 35px;
+  }
+
+  .add-btn {
+    opacity: .75;
+  }
+
+  .composer input[type="text"] {
+    min-width: 0;
+    width: 0;
+    flex: 1 1 auto;
+    padding: 6px 3px;
+    font-size: 15px;
+  }
+
+  .send-btn {
+    padding: 8px;
+    border-radius: 10px;
   }
 }
