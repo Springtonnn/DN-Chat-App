@@ -60,15 +60,38 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS messages (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     username TEXT NOT NULL,
+    user_id INTEGER,
     text TEXT NOT NULL DEFAULT '',
     image TEXT,
     file_name TEXT,
-    created_at INTEGER NOT NULL
+    created_at INTEGER NOT NULL,
+    edited_at INTEGER,
+    deleted_at INTEGER
   );
 `);
 
 // Backward-compatible migration for existing chat.db files.
+try { db.exec('ALTER TABLE messages ADD COLUMN user_id INTEGER'); } catch {}
 try { db.exec('ALTER TABLE messages ADD COLUMN file_name TEXT'); } catch {}
+try { db.exec('ALTER TABLE messages ADD COLUMN edited_at INTEGER'); } catch {}
+try { db.exec('ALTER TABLE messages ADD COLUMN deleted_at INTEGER'); } catch {}
+
+// Repair legacy messages so ownership is tied to the canonical user account.
+// Usernames are unique (NOCASE), so this also fixes older rows whose user_id
+// was missing or incorrect after schema changes.
+try {
+  db.prepare(`
+    UPDATE messages
+       SET user_id = (
+         SELECT u.id FROM users u
+          WHERE u.username = messages.username COLLATE NOCASE
+       )
+     WHERE EXISTS (
+       SELECT 1 FROM users u
+        WHERE u.username = messages.username COLLATE NOCASE
+     )
+  `).run();
+} catch {}
 
 const findUser = db.prepare('SELECT * FROM users WHERE username = ?');
 const insertUser = db.prepare('INSERT INTO users (username, password_hash) VALUES (?, ?)');
@@ -76,10 +99,13 @@ const insertSession = db.prepare('INSERT INTO sessions (token, user_id, expires_
 const sessionUser = db.prepare(
   'SELECT u.id, u.username FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token = ? AND s.expires_at > ?'
 );
-const insertMessage = db.prepare('INSERT INTO messages (username, text, image, file_name, created_at) VALUES (?, ?, ?, ?, ?)');
+const insertMessage = db.prepare('INSERT INTO messages (username, user_id, text, image, file_name, created_at) VALUES (?, ?, ?, ?, ?, ?)');
 const recentMessages = db.prepare(
   'SELECT * FROM (SELECT * FROM messages ORDER BY id DESC LIMIT ?) ORDER BY id ASC'
 );
+const updateMessage = db.prepare('UPDATE messages SET text = ?, edited_at = ? WHERE id = ? AND user_id = ? AND deleted_at IS NULL');
+const deleteMessage = db.prepare('UPDATE messages SET deleted_at = ? WHERE id = ? AND user_id = ? AND deleted_at IS NULL');
+const findMessage = db.prepare('SELECT * FROM messages WHERE id = ?');
 
 const userFromToken = (token) => (token ? sessionUser.get(String(token), Date.now()) : null);
 
@@ -128,7 +154,7 @@ app.post('/api/login', (req, res) => {
   const token = crypto.randomBytes(32).toString('hex');
   insertSession.run(token, user.id, Date.now() + SESSION_MS);
   if (created) announceNewAccount.add(token);
-  res.json({ token, username: user.username, created });
+  res.json({ token, username: user.username, userId: Number(user.id), created });
 });
 
 // File upload (max 20 MB). Files are stored under generated names so the original
@@ -170,7 +196,33 @@ io.use((socket, next) => {
   next();
 });
 
-const toClient = (m) => ({ id: m.id, username: m.username, text: m.text, image: m.image, fileName: m.file_name || null, time: m.created_at });
+const toClient = (m, viewer = null) => {
+  // Empty rows cannot be live messages in this application (the server never
+  // accepts a message with no text and no attachment). Treat legacy empty rows
+  // as deleted so they remain visible after refresh instead of becoming blank.
+  const deleted = !!m.deleted_at || (!String(m.text || '') && !m.image && !m.file_name);
+  let resolvedUserId = m.user_id == null ? null : Number(m.user_id);
+  if (!resolvedUserId && m.username) {
+    const owner = findUser.get(String(m.username));
+    if (owner) resolvedUserId = Number(owner.id);
+  }
+  return {
+    id: Number(m.id),
+    userId: resolvedUserId,
+    username: String(m.username || ''),
+    text: deleted ? 'ข้อความนี้ถูกลบ' : String(m.text || ''),
+    image: deleted ? null : (m.image || null),
+    fileName: deleted ? null : (m.file_name || null),
+    time: Number(m.created_at),
+    editedAt: m.edited_at || null,
+    deletedAt: m.deleted_at || null,
+    deleted,
+    mine: viewer
+      ? (Number(resolvedUserId) === Number(viewer.id)
+          || String(m.username || '').trim().toLocaleLowerCase() === String(viewer.username || '').trim().toLocaleLowerCase())
+      : undefined,
+  };
+};
 
 const onlineUsers = new Map();
 const announceNewAccount = new Set();
@@ -193,7 +245,8 @@ function broadcastMembers() {
 }
 
 io.on('connection', (socket) => {
-  socket.emit('history', recentMessages.all(HISTORY_LIMIT).map(toClient));
+  socket.emit('session_user', { id: Number(socket.user.id), username: socket.user.username });
+  socket.emit('history', recentMessages.all(HISTORY_LIMIT).map((m) => toClient(m, socket.user)));
 
   onlineUsers.set(socket.id, { id: socket.user.id, username: socket.user.username, joinedAt: Date.now() });
   broadcastMembers();
@@ -213,11 +266,53 @@ io.on('connection', (socket) => {
     const fileName = image && typeof payload.fileName === 'string' ? payload.fileName.slice(0, 180) : null;
     if (!text && !image) return;
 
-    const info = insertMessage.run(socket.user.username, text, image, fileName, now);
-    io.emit('message', toClient({ id: info.lastInsertRowid, username: socket.user.username, text, image, file_name: fileName, created_at: now }));
+    const info = insertMessage.run(socket.user.username, socket.user.id, text, image, fileName, now);
+    io.emit('message', toClient({ id: info.lastInsertRowid, user_id: socket.user.id, username: socket.user.username, text, image, file_name: fileName, created_at: now }));
+  });
+
+  socket.on('edit_message', (payload) => {
+    const id = Number(payload && payload.id);
+    const text = String((payload && payload.text) || '').trim().slice(0, 2000);
+    if (!Number.isInteger(id) || id <= 0 || !text) return;
+
+    const original = findMessage.get(id);
+    if (!original || Number(original.user_id) !== Number(socket.user.id)) return;
+    // Only text messages can be edited; attachment-only messages have no message body to edit.
+    if (!original.text) return;
+
+    const editedAt = Date.now();
+    const result = updateMessage.run(text, editedAt, id, socket.user.id);
+    if (!result.changes) return;
+
+    const updated = { ...original, text, edited_at: editedAt };
+    io.emit('message_updated', toClient(updated));
+  });
+
+  socket.on('delete_message', (payload) => {
+    const id = Number(payload && payload.id);
+    if (!Number.isInteger(id) || id <= 0) return;
+
+    const original = findMessage.get(id);
+    if (!original || original.deleted_at || Number(original.user_id) !== Number(socket.user.id)) return;
+
+    const deletedAt = Date.now();
+    const result = deleteMessage.run(deletedAt, id, socket.user.id);
+    if (!result.changes) return;
+
+    const deleted = { ...original, deleted_at: deletedAt };
+    io.emit('message_deleted', toClient(deleted));
+  });
+
+  let isTyping = false;
+  socket.on('typing', (payload) => {
+    const next = !!(payload && payload.typing);
+    if (next === isTyping) return;
+    isTyping = next;
+    socket.broadcast.emit('typing', { username: socket.user.username, typing: next });
   });
 
   socket.on('disconnect', () => {
+    if (isTyping) socket.broadcast.emit('typing', { username: socket.user.username, typing: false });
     onlineUsers.delete(socket.id);
     broadcastMembers();
   });
