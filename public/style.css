@@ -205,6 +205,14 @@ svg { width: 100%; height: 100%; display: block; }
   color: var(--ink); padding: 5px;
 }
 .who { font-weight: 700; font-size: 19px; color: var(--ink); }
+.message-time {
+  color: var(--ink-muted);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+  opacity: .8;
+}
 
 .bubble {
   background: var(--tan); color: var(--ink);
@@ -215,6 +223,35 @@ svg { width: 100%; height: 100%; display: block; }
 /* Image messages get a thin, EQUAL frame on all four sides instead of the text padding above */
 .bubble.has-image { padding: 8px; }
 .bubble img { display: block; max-width: 100%; max-height: 350px; border-radius: 15px; cursor: zoom-in; }
+.attachment-delete {
+  position: absolute;
+  top: 7px;
+  right: 7px;
+  z-index: 3;
+  width: 34px;
+  height: 34px;
+  padding: 8px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: var(--yellow);
+  color: var(--ink);
+  cursor: pointer;
+  opacity: 0;
+  visibility: hidden;
+  transform: scale(.9);
+  transition: opacity .1s ease, visibility .1s ease, transform .1s ease, background-color .1s ease;
+}
+.bubble.has-image { position: relative; }
+.bubble.has-image.attachment-delete-visible .attachment-delete,
+.bubble.has-image:focus-within .attachment-delete {
+  opacity: 1;
+  visibility: visible;
+  transform: scale(1);
+}
+.attachment-delete:hover { background: var(--yellow-deep); }
+.attachment-delete svg { width: 100%; height: 100%; }
 .file-attachment {
   display: grid; grid-template-columns: 48px minmax(0, 1fr); grid-template-rows: auto auto;
   column-gap: 12px; align-items: center; min-width: 220px; max-width: 420px;
@@ -400,7 +437,7 @@ svg { width: 100%; height: 100%; display: block; }
   .msg.editing .bubble { filter: brightness(.96); }
 }
 
-/* ---------- Mobile mode: exact compact single-card UI ---------- */
+/* ---------- Mobile mode: compact single-card UI ---------- */
 @media (max-width: 768px) {
   html, body {
     width: 100%;
@@ -411,8 +448,11 @@ svg { width: 100%; height: 100%; display: block; }
   body { font-size: 16px; }
   .stage { width: 100vw; height: 100dvh; overflow: hidden; }
 
-  /* Login stays a square card and the page never scrolls. */
-  .screen-login { overflow: hidden; padding: 12px; }
+  /* Login: keep the card square, but make the contents fit inside it. */
+  .screen-login {
+    overflow: hidden;
+    padding: 12px;
+  }
   .login-card {
     width: min(320px, calc(100vw - 24px), calc(100dvh - 24px));
     height: auto;
@@ -420,45 +460,60 @@ svg { width: 100%; height: 100%; display: block; }
     max-height: calc(100dvh - 24px);
     overflow: hidden;
     border-radius: 14px;
-    padding: 16px 18px;
+    padding: 14px 16px;
+    justify-content: flex-start;
   }
-  .brand-icon { width: 30px; height: 30px; padding: 6px; margin-bottom: 6px; border-radius: 9px; }
-  .login-card h1 { font-size: 24px; line-height: 1.05; margin-bottom: 2px; }
-  .login-card .sub { font-size: 13px; line-height: 1.15; margin-bottom: 9px; }
+  .brand-icon { width: 28px; height: 28px; padding: 5px; margin-bottom: 5px; border-radius: 8px; }
+  .login-card h1 { font-size: 23px; line-height: 1.05; margin: 0 0 2px; }
+  .login-card .sub { font-size: 12px; line-height: 1.15; margin: 0 0 8px; }
   .login-card label { font-size: 14px; line-height: 1.05; margin-bottom: 3px; }
-  .login-card input { padding: 8px 10px; margin-bottom: 3px; font-size: 15px; line-height: 1.05; border-radius: 9px; }
-  .hint, .error { min-height: 14px; margin-bottom: 4px; font-size: 11px; line-height: 1.05; }
-  .btn { padding: 9px; border-radius: 9px; font-size: 16px; line-height: 1.05; }
+  .login-card input { padding: 8px 10px; margin-bottom: 2px; font-size: 15px; line-height: 1.05; border-radius: 9px; }
+  .hint, .error { min-height: 13px; margin: 0 0 3px; font-size: 10.5px; line-height: 1.05; }
+  .btn { padding: 8px; border-radius: 9px; font-size: 15px; line-height: 1.05; }
 
-  /* Chat is a centered 296x591-ish card. */
+  /* Mobile chat card. Use a real flex hierarchy instead of display:contents.
+     This keeps the header, scroll area and composer as three reliable rows. */
   .screen-chat {
-    width: min(296px, calc(100vw - 24px), calc((100dvh - 24px) * 296 / 591));
-    height: auto;
-    aspect-ratio: 296 / 591;
+    /* IMPORTANT: this screen itself is the mobile card. Keep it centered with
+       explicit top/left positioning so its flex children always get a finite
+       height. The old inset:auto + aspect-ratio combination allowed the
+       messages area to grow beyond the card, which killed scrolling. */
+    top: 50%;
+    left: 50%;
+    right: auto;
+    bottom: auto;
+    width: min(296px, calc(100vw - 24px));
+    height: min(591px, calc(100dvh - 24px));
     max-width: calc(100vw - 24px);
     max-height: calc(100dvh - 24px);
-    margin: auto;
+    margin: 0;
     padding: 0;
-    display: grid;
-    grid-template-rows: auto minmax(0, 1fr) auto;
-    align-content: stretch;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
     background: var(--cream);
     border-radius: 14px;
     overflow: hidden;
     box-shadow: none;
-    transform: translateY(100%);
+    transform: translate(-50%, calc(-50% + 100vh));
   }
-  .stage.chat-active .screen-chat { transform: translateY(0); }
+  .stage.chat-active .screen-chat { transform: translate(-50%, -50%); }
   .stage.no-anim .screen-chat { transition: none; }
 
-  /* Flatten the desktop wrapper so the account bar, messages and composer
-     become three rows inside the same mobile card. */
-  .sidebar, .chat-panel { display: contents; }
+  /* Header: always visible at the top of the mobile chat card. */
+  .sidebar {
+    position: static;
+    inset: auto;
+    width: 100%;
+    height: auto;
+    min-height: 0;
+    flex: none;
+    display: block;
+    order: 1;
+  }
   .room-box, .divider, .spacer, .member-list { display: none !important; }
-
   .me-box {
-    grid-row: 1;
-    grid-column: 1;
     width: 100%;
     min-width: 0;
     margin: 0;
@@ -469,6 +524,7 @@ svg { width: 100%; height: 100%; display: block; }
     align-items: center;
     justify-content: space-between;
     gap: 8px;
+    background: var(--yellow);
   }
   .me-top { min-width: 0; flex: 1 1 auto; gap: 7px; }
   .avatar-icon { width: 34px; height: 34px; padding: 3px; }
@@ -485,16 +541,30 @@ svg { width: 100%; height: 100%; display: block; }
     transition: background-color .08s ease;
   }
 
+  /* Chat body is a flex child with its own vertical scroll container. */
+  .chat-panel {
+    order: 2;
+    width: 100%;
+    height: 0;
+    flex: 1 1 0;
+    min-height: 0;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    background: var(--cream);
+    overflow: hidden;
+  }
   .messages {
-    grid-row: 2;
-    grid-column: 1;
+    flex: 1 1 0;
     min-width: 0;
     min-height: 0;
+    height: 0;
     padding: 7px 15px 4px;
     gap: 8px;
     overflow-x: hidden;
     overflow-y: auto;
     overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
     background: var(--cream);
   }
   .msg { max-width: 92%; min-width: 0; }
@@ -503,6 +573,8 @@ svg { width: 100%; height: 100%; display: block; }
   .meta-row { gap: 5px; margin-bottom: 3px; min-width: 0; max-width: 100%; }
   .avatar-sm { width: 26px; height: 26px; padding: 2px; }
   .who { font-size: 18px; line-height: 1.05; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .message-time { font-size: 9.5px; }
+  .attachment-delete { width: 30px; height: 30px; padding: 7px; top: 5px; right: 5px; }
   .bubble {
     min-width: 0;
     max-width: 100%;
@@ -525,13 +597,10 @@ svg { width: 100%; height: 100%; display: block; }
   .file-icon { width: 42px; height: 42px; border-radius: 10px; }
   .file-name { min-width: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .system-msg { max-width: 90%; font-size: 11px; padding: 1px 8px; }
-  .toast { display: none; }
+  .toast { min-height: 0; padding: 0 15px 2px; font-size: 11px; }
 
   .typing-indicator {
-    grid-row: 2;
-    grid-column: 1;
-    align-self: end;
-    z-index: 3;
+    flex: none;
     width: 100%;
     min-height: 21px;
     padding: 0 15px 5px;
@@ -540,8 +609,7 @@ svg { width: 100%; height: 100%; display: block; }
   }
 
   .composer {
-    grid-row: 3;
-    grid-column: 1;
+    flex: none;
     width: auto;
     min-width: 0;
     margin: 7px 15px 9px;
